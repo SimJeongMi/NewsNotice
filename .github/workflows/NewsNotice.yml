@@ -1,0 +1,31 @@
+name: NewsNotice Bot
+
+on:
+  schedule:
+    # 한국 시간(KST) 기준 08:00 ~ 22:00까지 매 정각 실행
+    # UTC 기준: 23:00 ~ 13:00 (KST - 9시간)
+    # 분(0) 시(23,0-13) 일(*) 월(*) 요일(*)
+    - cron: '0 23,0-13 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run Python script
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python News_Notice.py
