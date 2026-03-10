@@ -9,23 +9,7 @@ from bs4 import BeautifulSoup
 # 환경 변수에서 웹후크 주소 로드
 hook_exchange = os.environ.get('DISCORD_WEBHOOK')
 
-# 1. 기술 블로그 포스팅 추출 (Medium RSS)
-def get_tech_blog():
-    url = "https://medium.com/feed/tag/software-engineering"
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        response = urllib.request.urlopen(req).read()
-        root = ET.fromstring(response)
-        items = root.findall('.//item')
-        if items:
-            target = random.choice(items[:20])
-            title = target.find('title').text
-            link = target.find('link').text.split('?')[0]
-            return f"📰 **오늘의 기술 읽을거리**\n**제목:** {title}\n**링크:** {link}\n"
-    except:
-        return "📰 기술 블로그 정보를 가져오지 못했습니다.\n"
-
-# 2. 네이버 경제 뉴스 상위 10개 추출
+# 네이버 경제 뉴스 상위 10개 추출
 def get_naver_economy_news():
     url = "https://news.naver.com/section/101"
     headers = {
@@ -51,7 +35,7 @@ def get_naver_economy_news():
     except Exception as e:
         return f"💰 뉴스 연결 실패: {str(e)}\n"
 
-# 3. 메인 실행부
+# 메인 실행부
 if __name__ == "__main__":
     # 한국 시간 기준 날짜 및 시간 생성 (UTC + 9시간)
     now_kst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
@@ -68,7 +52,7 @@ if __name__ == "__main__":
     # 전송 로직
     if hook_exchange and "http" in hook_exchange:
         payload = {
-            "username": "데브 & 경제 알리미",
+            "username": "뉴스 알리미",
             "content": full_content
         }
         # 2000자 초과 방지
