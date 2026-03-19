@@ -1,44 +1,40 @@
-# Cloud Flare로 돌리는 방법
 name: NewsNotice Bot
 
 on:
+  ##################################################
+  # ✅ [선택 1] Cloudflare에서만 실행 (추천)
+  # → Worker에서 GitHub API로 호출할 때 사용
+  ##################################################
   workflow_dispatch:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "ok"
+  ##################################################
+  # ✅ [선택 2] GitHub 자체 스케줄 실행
+  # → 아래 주석 풀면 GitHub가 자동 실행함
+  ##################################################
+  # schedule:
+  #   # 한국 시간(KST) 기준 08:00 ~ 22:00 매 정각
+  #   # UTC 기준: 23:00 ~ 13:00
+  #   - cron: '0 23,0-13 * * *'
 
-# Git의 스케줄러로 돌리는 방법      
-# name: NewsNotice Bot
-#
-# on:
-#   schedule:
-#     # 한국 시간(KST) 기준 08:00 ~ 22:00까지 매 정각 실행
-#     # UTC 기준: 23:00 ~ 13:00 (KST - 9시간)
-#     # 분(0) 시(23,0-13) 일(*) 월(*) 요일(*)
-#     - cron: '0 23,0-13 * * *'
-#
-#   workflow_dispatch:
-#
-# jobs:
-#   run-bot:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v3
-#
-#       - name: Set up Python
-#         uses: actions/setup-python@v4
-#         with:
-#           python-version: '3.9'
-#
-#       - name: Install dependencies
-#         run: |
-#           pip install requests beautifulsoup4
-#
-#       - name: Run Python script
-#         env:
-#           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-#         run: python News_Notice.py
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run Python script
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python News_Notice.py
