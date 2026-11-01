@@ -1,59 +1,98 @@
 import os
-import random
+import re
+import json
 import datetime
 import requests
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 
-# 환경 변수에서 웹후크 주소 로드
 hook_exchange = os.environ.get('DISCORD_WEBHOOK')
 
-# 네이버 경제 뉴스 상위 10개 추출
-def get_naver_economy_news():
-    url = "https://news.naver.com/section/101"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
+}
+
+# 기사 URL에서 oid, aid 추출 (예: https://n.news.naver.com/mnews/article/015/0005012345)
+def parse_ids(link):
+    m = re.search(r'/article/(\d+)/(\d+)', link)
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+# 기사별 댓글 수 조회
+def get_comment_count(link):
+    oid, aid = parse_ids(link)
+    if not oid:
+        return 0
+    api = "https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json"
+    params = {
+        "ticket": "news",
+        "templateId": "default_economy",
+        "pool": "cbox5",
+        "lang": "ko",
+        "country": "KR",
+        "objectId": f"news{oid},{aid}",
+        "pageSize": 1,
+        "page": 1,
+        "_callback": "cb",
     }
+    headers = {**HEADERS, "Referer": link}  # Referer 없으면 거부됨
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(api, params=params, headers=headers, timeout=5)
+        text = res.text
+        data = json.loads(text[text.find('(') + 1 : text.rfind(')')])
+        return data.get("result", {}).get("count", {}).get("comment", 0)
+    except Exception:
+        return 0
+
+# 네이버 경제 뉴스: 댓글 많은 순 상위 10개
+def get_naver_economy_news(top_n=10):
+    url = "https://news.naver.com/section/101"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
-        news_items = soup.select('.sa_text_title')
-        
-        if not news_items:
+        items = soup.select('.sa_text_title')
+        if not items:
             return "💰 현재 경제 뉴스를 가져오지 못했습니다.\n"
 
-        news_text = "💰 **현재 경제 뉴스 (상위 10개)**\n"
-        for i, item in enumerate(news_items[:10], 1):
-            title = item.get_text(strip=True)
+        # 중복 제거하며 전체 기사 수집
+        articles, seen = [], set()
+        for item in items:
             link = item.get('href')
-            if link and not link.startswith('http'):
+            if not link:
+                continue
+            if not link.startswith('http'):
                 link = f"https://news.naver.com{link}"
-            news_text += f"{i}. [{title}]({link})\n"
+            if link in seen:
+                continue
+            seen.add(link)
+            articles.append({"title": item.get_text(strip=True), "link": link})
+
+        # 댓글 수 병렬 조회
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            counts = list(ex.map(lambda a: get_comment_count(a["link"]), articles))
+        for a, c in zip(articles, counts):
+            a["comments"] = c
+
+        articles.sort(key=lambda a: a["comments"], reverse=True)
+
+        news_text = f"💰 **댓글 많은 경제 뉴스 (상위 {top_n}개)**\n"
+        for i, a in enumerate(articles[:top_n], 1):
+            news_text += f"{i}. [{a['title']}](<{a['link']}>) 💬 {a['comments']:,}\n"
         return news_text + "\n"
     except Exception as e:
         return f"💰 뉴스 연결 실패: {str(e)}\n"
 
-# 메인 실행부
 if __name__ == "__main__":
-    # 한국 시간 기준 날짜 및 시간 생성
-    now_kst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     today_date = now_kst.strftime("%Y년 %m월 %d일 %H시")
 
-    # 1. 뉴스 파트만 가져오기 
     news_part = get_naver_economy_news()
 
-    # 2. 최종 메시지 구성
-    full_content = f"🔔 **경제 뉴스 알림 도착 ({today_date})**\n\n"
-    full_content += f"{news_part}\n"
+    full_content = f"🔔 **경제 뉴스 알림 도착 ({today_date})**\n\n{news_part}\n"
 
-    # 전송 로직
     if hook_exchange and "http" in hook_exchange:
-        payload = {
-            "username": "경제 뉴스 알리미",
-            "content": full_content
-        }
+        payload = {"username": "경제 뉴스 알리미", "content": full_content[:2000]}
         if len(full_content) > 2000:
             payload["content"] = full_content[:1990] + "..."
-            
         requests.post(hook_exchange, json=payload)
         print(f"{today_date} 뉴스 전송 완료!")
     else:
