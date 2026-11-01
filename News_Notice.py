@@ -73,10 +73,13 @@ def fetch_articles():
 
 
 # 목록 → 디스코드 메시지 텍스트
-def format_section(header, articles):
+def format_section(header, articles, show_comments=False):
     text = f"{header}\n"
     for i, a in enumerate(articles[:TOP_N], 1):
-        text += f"{i}. [{a['title']}](<{a['link']}>) 💬 {a['comments']:,}\n"
+        text += f"{i}. [{a['title']}](<{a['link']}>)"
+        if show_comments:
+            text += f" 💬 {a['comments']:,}"
+        text += "\n"
     return text
 
 
@@ -97,7 +100,7 @@ if __name__ == "__main__":
         else:
             latest = format_section(f"💰 **현재 경제 뉴스 (상위 {TOP_N}개)**", articles)
             by_comments = sorted(articles, key=lambda a: a["comments"], reverse=True)
-            popular = format_section(f"🔥 **댓글 많은 경제 뉴스 (상위 {TOP_N}개)**", by_comments)
+            popular = format_section(f"🔥 **댓글 많은 경제 뉴스 (상위 {TOP_N}개)**", by_comments, show_comments=True)
             messages = [latest, popular]
     except Exception as e:
         messages = [f"💰 뉴스 연결 실패: {e}"]
